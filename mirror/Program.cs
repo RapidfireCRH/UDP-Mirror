@@ -32,6 +32,14 @@ namespace mirror
             {
                 try
                 {
+                    for(int i = 0; i != history.Count; i++)
+                    {
+                        if (history[i].time_received.AddMinutes(1) < DateTime.Now)
+                        {
+                            history.Remove(history[i]);
+                            i--;
+                        }
+                    }
                     Console.Clear();
                     Console.WriteLine("Listener started: " + starttimestamp.ToShortDateString() + " " + starttimestamp.ToLongTimeString());
                     Console.WriteLine("Port: " + port + " | Total Requests served: " + totalreq + " | # Requests served < 5 min: " + history.Count);
@@ -49,11 +57,14 @@ namespace mirror
                     rec.time_received = DateTime.Now;
                     history.Add(rec);
                     last = rec;
+                    totalreq++;
                     Log("Received connection from " + remoteIPEndPoint.Address.ToString() + ": " + receivedstr);
-
+                    udpClient.Close();
+                    udpClient = new UdpClient(port);
                     //Send capitalized reply
                     udpClient.Send(Encoding.ASCII.GetBytes(receivedstr.ToUpper()), Encoding.ASCII.GetBytes(receivedstr).Length, remoteIPEndPoint);
                     Log("Sent connection to " + remoteIPEndPoint.Address.ToString() + ": " + receivedstr.ToUpper());
+                    udpClient.Close();
                 }
                 catch(Exception e)
                 {
@@ -97,13 +108,13 @@ namespace mirror
                     break;
                 case logtype.log:
                     string[] templog = { DateTime.Now.ToShortDateString() + " " + DateTime.Now.ToLongTimeString() + " - " + errormsg };
-                    File.WriteAllLines("Mirror.log", templog);
+                    File.AppendAllLines("Mirror.log", templog);
                     if (verbose)
                         Console.WriteLine(templog[0]);
                     break;
                 case logtype.error:
                     string[] temperr = { DateTime.Now.ToShortDateString() + " " + DateTime.Now.ToLongTimeString() + " - " + errormsg };
-                    File.WriteAllLines("Error.log",temperr);
+                    File.AppendAllLines("Error.log",temperr);
                     if (verbose)
                         Console.WriteLine(temperr[0]);
                     break;
