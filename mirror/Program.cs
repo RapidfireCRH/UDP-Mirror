@@ -15,8 +15,7 @@ namespace mirror
         static int port = 8123;
         struct _histst
         {
-            public IPAddress ip;
-            public string message;
+            public _net._rec rec;
             public DateTime time_received;
         }
         static List<_histst> history = new List<_histst>();
@@ -28,45 +27,30 @@ namespace mirror
                 return;
             DateTime starttimestamp = DateTime.Now;
             Log("Program started. Port: " + port + " Verbose: " + (verbose ? "True" : "False"));
+            _net net = new _net();
             while (true)
             {
                 try
                 {
-                    for(int i = 0; i != history.Count; i++)
-                    {
-                        if (history[i].time_received.AddMinutes(1) < DateTime.Now)
-                        {
-                            history.Remove(history[i]);
-                            i--;
-                        }
-                    }
-                    Console.Clear();
-                    Console.WriteLine("Listener started: " + starttimestamp.ToShortDateString() + " " + starttimestamp.ToLongTimeString());
-                    Console.WriteLine("Port: " + port + " | Total Requests served: " + totalreq + " | # Requests served < 5 min: " + history.Count);
-                    if (history.Count > 0)
-                        Console.WriteLine("Last message: " + last.time_received.ToShortDateString() + " " + last.time_received.ToLongTimeString() + " | " + last.ip + " | " + last.message);
-                    //create connection
-                    UdpClient udpClient = new UdpClient(port);
-                    IPEndPoint remoteIPEndPoint = new IPEndPoint(IPAddress.Any, 0);
-                    string receivedstr = Encoding.ASCII.GetString(udpClient.Receive(ref remoteIPEndPoint));
-
+                    clear_old_history();
+                    display(starttimestamp);
+                    _net._rec temp = net.receive();
+                    
                     //catalog received message
                     _histst rec = new _histst();
-                    rec.ip = remoteIPEndPoint.Address;
-                    rec.message = receivedstr;
+                    rec.rec.ip = temp.ip;
+                    rec.rec.message = temp.message;
                     rec.time_received = DateTime.Now;
                     history.Add(rec);
                     last = rec;
                     totalreq++;
-                    Log("Received connection from " + remoteIPEndPoint.Address.ToString() + ": " + receivedstr);
-                    udpClient.Close();
-                    udpClient = new UdpClient(port);
+                    Log("Received connection from " + rec.rec.ip + ": " + rec.rec.message);
+
                     //Send capitalized reply
-                    udpClient.Send(Encoding.ASCII.GetBytes(receivedstr.ToUpper()), Encoding.ASCII.GetBytes(receivedstr).Length, remoteIPEndPoint);
-                    Log("Sent connection to " + remoteIPEndPoint.Address.ToString() + ": " + receivedstr.ToUpper());
-                    udpClient.Close();
+                    net.send(rec.rec.ip, rec.rec.message);
+                    Log("Sent connection to " + rec.rec.ip + ": " + rec.rec.message.ToUpper());
                 }
-                catch(Exception e)
+                catch (Exception e)
                 {
                     Log("Error: " + e.Message, logtype.error);
                     Log(e.StackTrace, logtype.error);
@@ -75,11 +59,30 @@ namespace mirror
                 }
             }
         }
+        static void clear_old_history()
+        {
+            for (int i = 0; i != history.Count; i++)
+            {
+                if (history[i].time_received.AddMinutes(1) < DateTime.Now)
+                {
+                    history.Remove(history[i]);
+                    i--;
+                }
+            }
+        }
+        static void display(DateTime st)
+        {
+            Console.Clear();
+            Console.WriteLine("Listener started: " + st.ToShortDateString() + " " + st.ToLongTimeString());
+            Console.WriteLine("Port: " + port + " | Total Requests served: " + totalreq + " | # Requests served < 5 min: " + history.Count);
+            if (history.Count > 0)
+                Console.WriteLine("Last message: " + last.time_received.ToShortDateString() + " " + last.time_received.ToLongTimeString() + " | " + last.rec.ip + " | " + last.rec.message);
+        }
         static bool checkargs(string[] args)
         {
-            for(int i = 0;i!= args.Length;i++)
+            for (int i = 0; i != args.Length; i++)
             {
-                switch(args[i].ToLower())
+                switch (args[i].ToLower())
                 {
                     case "-v":
                         verbose = true;
@@ -91,17 +94,17 @@ namespace mirror
                         }
                         catch
                         {
-                            Log("unable to read \"" + args[i - 1] + " " + args[i] + "\".",logtype.error);
+                            Log("unable to read \"" + args[i - 1] + " " + args[i] + "\".", logtype.error);
                         }
                         break;
                 }
             }
             return true;
         }
-        enum logtype { error, log, console_only}
+        enum logtype { error, log, console_only }
         static void Log(string errormsg, logtype lt = logtype.log)
         {
-            switch(lt)
+            switch (lt)
             {
                 case logtype.console_only:
                     Console.WriteLine(DateTime.Now.ToLongTimeString() + " | " + errormsg);
@@ -114,7 +117,7 @@ namespace mirror
                     break;
                 case logtype.error:
                     string[] temperr = { DateTime.Now.ToShortDateString() + " " + DateTime.Now.ToLongTimeString() + " - " + errormsg };
-                    File.AppendAllLines("Error.log",temperr);
+                    File.AppendAllLines("Error.log", temperr);
                     if (verbose)
                         Console.WriteLine(temperr[0]);
                     break;
